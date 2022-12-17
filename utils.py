@@ -80,7 +80,7 @@ def run_custom_test_suite_and_calculate_test_coverage(
 
     coverage_run_cmd = "coverage run --branch -m pytest{}".format(test_cases_to_run)
 
-    print(coverage_run_cmd)
+    # print(coverage_run_cmd)
 
     coverage_run_cmd_output = subprocess.run(
         coverage_run_cmd, shell=True, capture_output=True, text=True
@@ -115,10 +115,10 @@ def parse_coverage_report():
         branch_coverage_missed = coverage_stats_result.group(4)
 
         return (
-            statement_coverage_total,
-            statement_coverage_missed,
-            branch_coverage,
-            branch_coverage_missed,
+            int(statement_coverage_total),
+            int(statement_coverage_missed),
+            int(branch_coverage),
+            int(branch_coverage_missed),
         )
 
     return False
@@ -131,9 +131,9 @@ def activate_random_test_suite(test_cases_list):
 # print(parse_and_build_test_case_data())
 # print(calculate_total_coverage())
 
-files, cases = parse_and_build_test_case_data()
-print(files, cases)
-random_activated_cases_list = activate_random_test_suite(cases)
-# print(random_activated_cases_list)
-run_custom_test_suite_and_calculate_test_coverage(cases, random_activated_cases_list)
-print(parse_coverage_report())
+# files, cases = parse_and_build_test_case_data()
+# print(files, cases)
+# random_activated_cases_list = activate_random_test_suite(cases)
+# # print(random_activated_cases_list)
+# run_custom_test_suite_and_calculate_test_coverage(cases, random_activated_cases_list)
+# print(parse_coverage_report())
