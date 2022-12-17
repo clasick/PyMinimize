@@ -1,10 +1,15 @@
 import random
 import re
 import subprocess
+import os
 
+
+test_suites_directory = os.path.join("test-suites")
+flask_project = os.path.join(test_suites_directory, "flask")
+flask_test_suite = os.path.join(flask_project, "tests")
 
 def parse_and_build_test_case_data():
-    build_test_case_cmd = "pytest --collect-only"
+    build_test_case_cmd = "pytest --collect-only {}".format(flask_test_suite)
 
     build_test_case_output = subprocess.run(
         build_test_case_cmd, shell=True, capture_output=True, text=True
@@ -71,7 +76,7 @@ def run_custom_test_suite_and_calculate_test_coverage(
     if test_cases_list and test_cases_activation_list:
         for test_case_activation in zip(test_cases_list, test_cases_activation_list):
             if test_case_activation[1]:
-                test_cases_to_run += f" {test_case_activation[0]}"
+                test_cases_to_run += f" {flask_project}/{test_case_activation[0]}"
 
     coverage_run_cmd = "coverage run --branch -m pytest{}".format(test_cases_to_run)
 
@@ -129,6 +134,6 @@ def activate_random_test_suite(test_cases_list):
 files, cases = parse_and_build_test_case_data()
 print(files, cases)
 random_activated_cases_list = activate_random_test_suite(cases)
-print(random_activated_cases_list)
+# print(random_activated_cases_list)
 run_custom_test_suite_and_calculate_test_coverage(cases, random_activated_cases_list)
 print(parse_coverage_report())
