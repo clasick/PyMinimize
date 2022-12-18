@@ -20,14 +20,17 @@ def parse_and_build_test_case_data():
 
     build_test_case_output = build_test_case_output.stdout
 
-    test_suite_files = []
-    test_cases_list = []
+    test_suite_files = set()
+    test_cases_list = set()
 
     # regexes
     regex_test_suite_file = "^<Module.* (.*.py)>$"
-    regex_test_case = r"^  <Function (.*)\[.*>$"
+    regex_test_case = r"^  <Function (.*).*>$"
+    regex_test_case_params = r"^  <Function (.*)\[.*>$"
     regex_test_class = "^  <Class (.*)>$"
-    regex_test_class_test_case = r"^    <Function (.*)\[.*>$"
+    regex_test_class_test_case = r"^    <Function (.*).*>$"
+    regex_test_class_test_case_params = r"^    <Function (.*)\[.*>$"
+
 
     current_test_suite_file = None
     current_test_class = None
@@ -37,7 +40,7 @@ def parse_and_build_test_case_data():
 
         if test_suit_file_result:
             test_suite_file = test_suit_file_result.group(1)
-            test_suite_files.append(test_suite_file)
+            test_suite_files.add(test_suite_file)
             current_test_suite_file = test_suite_file
 
         if current_test_suite_file:
@@ -46,12 +49,19 @@ def parse_and_build_test_case_data():
             if test_class_result:
                 current_test_class = test_class_result.group(1)
 
-            test_case_result = re.search(regex_test_case, line)
+            test_case_result = re.search(regex_test_case_params, line)
 
-            test_class_test_case_result = re.search(regex_test_class_test_case, line)
+            if not test_case_result:
+                test_case_result = re.search(regex_test_case, line)
+
+            test_class_test_case_result = re.search(regex_test_class_test_case_params, line)
+
+            if not test_class_test_case_result:
+                test_class_test_case_result = re.search(
+                    regex_test_class_test_case, line)
 
             if test_class_test_case_result:
-                test_cases_list.append(
+                test_cases_list.add(
                     "{}::{}::{}".format(
                         current_test_suite_file,
                         current_test_class,
@@ -60,12 +70,12 @@ def parse_and_build_test_case_data():
                 )
 
             if test_case_result:
-                test_cases_list.append(
+                test_cases_list.add(
                     "{}::{}".format(current_test_suite_file, test_case_result.group(1))
                 )
                 current_test_class = None
 
-    return test_suite_files, test_cases_list
+    return sorted(test_suite_files), sorted(test_cases_list)
 
 
 def run_custom_test_suite_and_calculate_test_coverage(
@@ -129,11 +139,18 @@ def activate_random_test_suite(test_cases_list):
 
 
 # print(parse_and_build_test_case_data())
-# print(calculate_total_coverage())
 
 # files, cases = parse_and_build_test_case_data()
-# print(files, cases)
+# print(len(cases))
+# for file in files:
+#     print(file)
+
+# for case in cases:
+#     print(case)
 # random_activated_cases_list = activate_random_test_suite(cases)
-# # print(random_activated_cases_list)
+# print(random_activated_cases_list)
+# print(sum(random_activated_cases_list))
 # run_custom_test_suite_and_calculate_test_coverage(cases, random_activated_cases_list)
-# print(parse_coverage_report())
+# report_values = parse_coverage_report()
+# print(report_values)
+# print(1.0-(report_values[1]/report_values[0]))
