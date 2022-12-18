@@ -31,7 +31,6 @@ def parse_and_build_test_case_data():
     regex_test_class_test_case = r"^    <Function (.*).*>$"
     regex_test_class_test_case_params = r"^    <Function (.*)\[.*>$"
 
-
     current_test_suite_file = None
     current_test_class = None
 
@@ -54,7 +53,8 @@ def parse_and_build_test_case_data():
             if not test_case_result:
                 test_case_result = re.search(regex_test_case, line)
 
-            test_class_test_case_result = re.search(regex_test_class_test_case_params, line)
+            test_class_test_case_result = re.search(
+                regex_test_class_test_case_params, line)
 
             if not test_class_test_case_result:
                 test_class_test_case_result = re.search(
