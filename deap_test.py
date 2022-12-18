@@ -6,9 +6,10 @@ from deap import tools
 import utils
 
 CONST_TOTAL_TEST_STATEMENTS = 3020.0
-CONST_TOTAL_TEST_SUITE_COUNT = 483
 
 files, cases = utils.parse_and_build_test_case_data()
+
+CONST_TOTAL_TEST_SUITE_COUNT = len(cases)
 
 # each gen
 # run_custom_test_suite_and_calculate_test_coverage(cases, random_activated_cases_list)
@@ -142,6 +143,11 @@ def main():
         print("  Max %s" % max(fits))
         print("  Avg %s" % mean)
         print("  Std %s" % std)
+        activated_test_cases = sum(tools.selBest(pop, 1)[0])
+        coverage = tools.selBest(pop, 1)[0].fitness.values[0]/3020.0 * 100
+        print("  best agent's no of test cases: {}".format(activated_test_cases))
+        print("  total number of test cases minimized: {} (from {})".format(CONST_TOTAL_TEST_SUITE_COUNT-activated_test_cases, CONST_TOTAL_TEST_SUITE_COUNT))
+        print("  best agent's coverage %: {}".format(coverage))
 
     print("-- End of (successful) evolution --")
 
