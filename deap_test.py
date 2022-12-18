@@ -63,7 +63,7 @@ toolbox.register("select", tools.selTournament, tournsize=3)
 #----------
 
 def main():
-    random.seed(64)
+    # random.seed(64)
 
     # create an initial population of 300 individuals (where
     # each individual is a list of integers)
