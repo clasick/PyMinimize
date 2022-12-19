@@ -148,7 +148,8 @@ class TestSuiteMinimization:
             total_test_statements, population_size=100, 
             max_generation_count=10000,  cross_over_probability=0.5, 
             mutation_probability=0.2, mutation_attribute_probability=0.05, 
-            selection_tournament_size=3, distance_metric='hamming'):
+            selection_tournament_size=3, distance_metric='hamming', 
+            novelty_archive=True):
         self.CONST_TEST_SUITE_PATH = test_suite_path
         self.CONST_SEARCH_METHOD = search_method
         self.CONST_TEST_SUITE_CASES = test_suite_cases
@@ -161,9 +162,11 @@ class TestSuiteMinimization:
                 mutation_attribute_probability
         self.CONST_SELECTION_TOURNAMENT_SIZE = selection_tournament_size
         self.KNN_DISTANCE_METRIC = distance_metric
+        self.NOVELTY_ARCHIVE = novelty_archive
 
         if self.CONST_SEARCH_METHOD == "novelty":
-            self.global_novelty_archive_list = dict()
+            if self.NOVELTY_ARCHIVE:
+                self.global_novelty_archive_list = dict()
             self.global_best_individuals = [
                 [[0] * len(self.CONST_TEST_SUITE_CASES), 0]]
 
@@ -188,6 +191,7 @@ class TestSuiteMinimization:
         print("Tournament Selection Size: {}".format(
                 self.CONST_SELECTION_TOURNAMENT_SIZE))
         if self.CONST_SEARCH_METHOD == "novelty":
+            print("Use Novelty Archive: {}".format(self.NOVELTY_ARCHIVE))
             print("kNN Distance Metric: {}".format(self.KNN_DISTANCE_METRIC))
         print("-----------------------------------")
 
@@ -326,27 +330,40 @@ class TestSuiteMinimization:
         if flag:
             self.global_best_individuals.append([individual, coverage_value])
 
-        if len(self.global_novelty_archive_list) < self.CONST_POPULATION_SIZE:
-            self.global_novelty_archive_list[
-                    tuple(individual)] = (1, coverage_value)
-            return 1,
-        else:
-            population_and_novelty_list = [
-                list(k) for k, _ in self.global_novelty_archive_list.items()] \
-                + population
+        if self.NOVELTY_ARCHIVE:
+            if len(self.global_novelty_archive_list) < self.CONST_POPULATION_SIZE:
+                self.global_novelty_archive_list[
+                        tuple(individual)] = (1, coverage_value)
+                return 1,
+            else:
+                population_and_novelty_list = [
+                    list(k) for k, _ in \
+                        self.global_novelty_archive_list.items()] \
+                    + population
 
+                knn_calculator = NearestNeighbors(
+                        n_neighbors = 3,
+                        metric = self.KNN_DISTANCE_METRIC).fit(
+                            population_and_novelty_list)
+                
+                distances, _ = knn_calculator.kneighbors([individual])
+
+                individual_novelty_metric = np.mean(distances)
+
+                if individual_novelty_metric > 7:
+                    self.global_novelty_archive_list[tuple(individual)] = (
+                        individual_novelty_metric, coverage_value)
+
+                return individual_novelty_metric,
+        else:
             knn_calculator = NearestNeighbors(
-                    n_neighbors = 3,
-                    metric = self.KNN_DISTANCE_METRIC).fit(
-                        population_and_novelty_list)
-            
+                        n_neighbors = 3,
+                        metric = self.KNN_DISTANCE_METRIC).fit(
+                            population)
+                
             distances, _ = knn_calculator.kneighbors([individual])
 
             individual_novelty_metric = np.mean(distances)
-
-            if individual_novelty_metric > 7:
-                self.global_novelty_archive_list[tuple(individual)] = (
-                    individual_novelty_metric, coverage_value)
 
             return individual_novelty_metric,
 
@@ -526,7 +543,11 @@ if __name__ == "__main__":
             required = False,
             default = "hamming",
             help="the distance metric to use for calculating kNN in N.S.")
-            
+    parser.add_argument('--omit_novelty_archive',
+            action="store_true",
+            required = False,
+            default = False,
+            help="whether to use a novelty archive during Novelty Search")
 
     args = parser.parse_args()
     test_suite_path = args.path
@@ -538,6 +559,7 @@ if __name__ == "__main__":
     mutation_attribute_probability = args.attribute_mutation
     tournament_size = args.tourn_size
     distance_metric = args.distance_metric
+    novelty_archive = not args.omit_novelty_archive
 
     if not os.path.exists(test_suite_path):
         print("Could not find the specificed directory at the given path!")
@@ -566,7 +588,8 @@ if __name__ == "__main__":
         mutation_probability=mutation_probability,
         mutation_attribute_probability=mutation_attribute_probability,
         selection_tournament_size=tournament_size,
-        distance_metric=distance_metric)
+        distance_metric=distance_metric,
+        novelty_archive=novelty_archive)
     
     best_test_suite, best_coverage_value = tsm.perform_test_suite_minimization()
     csv_file_path = 'minimized_test_suite.csv'
