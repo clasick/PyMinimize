@@ -765,7 +765,6 @@ if __name__ == "__main__":
 
         for test_case, included in zip(test_suite_cases_list, best_test_suite):
             included = "YES" if included == 1 else "NO"
-            print(test_case, included)
             csv_writer.writerow([test_case, included])
 
     print("-----------------------------------")
