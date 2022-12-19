@@ -144,12 +144,13 @@ def activate_random_test_suite(test_cases_list):
 
 class TestSuiteMinimization:
     def __init__(
-            self, test_suite_path, test_suite_cases,
+            self, test_suite_path, search_method, test_suite_cases,
             total_test_statements, population_size=100, 
             max_generation_count=10000,  cross_over_probability=0.5, 
             mutation_probability=0.2, mutation_attribute_probability=0.05, 
             selection_tournament_size=3):
         self.CONST_TEST_SUITE_PATH = test_suite_path
+        self.CONST_SEARCH_METHOD = search_method
         self.CONST_TEST_SUITE_CASES = test_suite_cases
         self.CONST_TOTAL_TEST_STATEMENTS = total_test_statements
         self.CONST_POPULATION_SIZE = population_size
@@ -160,7 +161,33 @@ class TestSuiteMinimization:
                 mutation_attribute_probability
         self.CONST_SELECTION_TOURNAMENT_SIZE = selection_tournament_size
 
-    def genetic_fitness_algorithm(self, individual):
+        if self.CONST_SEARCH_METHOD == "novelty":
+            self.global_novelty_archive_list = dict()
+            self.global_best_individuals = [
+                [[0] * len(self.CONST_TEST_SUITE_CASES), 0]]
+
+    def print_minimization_params(self):
+        print("Test Suite Minimization Initialized")
+        print("-----------------------------------")
+        print("Test Suite Path: {}".format(self.CONST_TEST_SUITE_PATH))
+        print("Minimization Method: {}".format(self.CONST_SEARCH_METHOD))
+        print("Test Suite Size: {} test cases".format(
+                len(self.CONST_TEST_SUITE_CASES)))
+        print("Test Suite Total Statements: {}".format(
+                self.CONST_TOTAL_TEST_STATEMENTS))
+        print("Population Size: {}".format(self.CONST_POPULATION_SIZE))
+        print("Max Generations: {}".format(self.CONST_MAX_GENERATION_COUNT))
+        print("Crossover Probability: {}".format(
+                self.CONST_CROSS_OVER_PROBABILITY))
+        print("Mutation Probability: {}".format(
+                self.CONST_MUTATION_PROBABILITY))
+        print("Attribute Mutation Probability: {}".format(
+                self.CONST_MUTATION_ATTRIBUTE_PROBABILITY))
+        print("Tournament Selection Size: {}".format(
+                self.CONST_SELECTION_TOURNAMENT_SIZE))
+        print("-----------------------------------")
+
+    def genetic_fitness_function(self, individual):
         run_custom_test_suite_and_calculate_test_coverage(
                 self.CONST_TEST_SUITE_PATH, self.CONST_TEST_SUITE_CASES, 
                 individual)
@@ -186,7 +213,7 @@ class TestSuiteMinimization:
             "population", tools.initRepeat, 
             list, genetic_toolbox.individual)
 
-        genetic_toolbox.register("evaluate", self.genetic_fitness_algorithm)
+        genetic_toolbox.register("evaluate", self.genetic_fitness_function)
 
         genetic_toolbox.register("mate", tools.cxTwoPoint)
 
@@ -214,7 +241,7 @@ class TestSuiteMinimization:
         current_generation_count = 0
 
         while (
-            max(fitness_values) < self.CONST_TOTAL_TEST_STATEMENTS and 
+                max(fitness_values) < self.CONST_TOTAL_TEST_STATEMENTS and 
                 current_generation_count < self.CONST_MAX_GENERATION_COUNT):
             current_generation_count = current_generation_count + 1
             print("Generation #{}".format(current_generation_count))
@@ -272,132 +299,163 @@ class TestSuiteMinimization:
 
         print("Finished evluating test suite using genetic algorithm!")
 
-# def perform_novelty_search(test_suite_path):
-#     global_novelty_archive_list = dict()
-#     global_best_individuals = [[[0] * 200, 0]]
+    def calculate_novelty_metric(self, individual, pop):
+        run_custom_test_suite_and_calculate_test_coverage(
+                self.CONST_TEST_SUITE_PATH, self.CONST_TEST_SUITE_CASES, 
+                individual)
+        coverage_value = self.CONST_TOTAL_TEST_STATEMENTS - \
+                parse_coverage_report()[1]
 
-#     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
-#     creator.create("Individual", list, fitness=creator.FitnessMax)
-
-#     toolbox = base.Toolbox()
-
-#     toolbox.register("attr_bool", random.randint, 0, 1)
-
-#     toolbox.register("individual", tools.initRepeat, creator.Individual, 
-#         toolbox.attr_bool, CONST_TOTAL_TEST_SUITE_COUNT)
-
-#     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-
-#     def evalOneMax(individual, pop):
-#         run_custom_test_suite_and_calculate_test_coverage(
-#                 test_suite_path, cases, individual)
-#         coverage_value = CONST_TOTAL_TEST_STATEMENTS-parse_coverage_report()[1]
-
-#         flag = 1
-#         for x in global_best_individuals:
-#             if coverage_value < x[1]:
-#                 flag = 0
-#                 break
+        flag = 1
+        for x in self.global_best_individuals:
+            if coverage_value < x[1]:
+                flag = 0
+                break
         
-#         if flag:
-#             global_best_individuals.append([individual, coverage_value])
+        if flag:
+            self.global_best_individuals.append([individual, coverage_value])
 
-#         if len(global_novelty_archive_list) < CONST_POPULATION_SIZE:
-#             global_novelty_archive_list[tuple(individual)] = (1, coverage_value)
-#             return 1, 
-#         else:
-#             population_and_novelty_list = [list(k) for k, v in global_novelty_archive_list.items()] + pop
+        if len(self.global_novelty_archive_list) < self.CONST_POPULATION_SIZE:
+            self.global_novelty_archive_list[
+                    tuple(individual)] = (1, coverage_value)
+            return 1,
+        else:
+            population_and_novelty_list = [
+                list(k) for k, _ in self.global_novelty_archive_list.items()] \
+                + pop
 
-#             knn_calculator = NearestNeighbors(n_neighbors = 3).fit(
-#                 population_and_novelty_list)
+            knn_calculator = NearestNeighbors(n_neighbors = 3).fit(
+                population_and_novelty_list)
             
-#             distances, indices = knn_calculator.kneighbors([individual])
+            distances, _ = knn_calculator.kneighbors([individual])
 
-#             individual_novelty_metric = np.mean(distances)
+            individual_novelty_metric = np.mean(distances)
 
-#             if individual_novelty_metric > 7:
-#                 global_novelty_archive_list[tuple(individual)] = (
-#                     individual_novelty_metric, coverage_value)
+            if individual_novelty_metric > 7:
+                self.global_novelty_archive_list[tuple(individual)] = (
+                    individual_novelty_metric, coverage_value)
 
-#             return individual_novelty_metric,
+            return individual_novelty_metric,
 
-#     toolbox.register("evaluate", evalOneMax)
+    def perform_novelty_search(self):
+        print("Starting test suite minimization with novelty search")
 
-#     toolbox.register("mate", tools.cxTwoPoint)
+        creator.create("NoveltyMetric", base.Fitness, weights=(1.0,))
+        creator.create("Individual", list, fitness=creator.NoveltyMetric)
 
-#     toolbox.register("mutate", tools.mutFlipBit, indpb=0.10)
+        novelty_toolbox = base.Toolbox()
 
-#     toolbox.register("select", tools.selTournament, tournsize=3)
+        novelty_toolbox.register("attr_bool", random.randint, 0, 1)
 
-#     pop = toolbox.population(n=CONST_POPULATION_SIZE)
+        novelty_toolbox.register(
+            "individual", tools.initRepeat, creator.Individual, 
+            novelty_toolbox.attr_bool, len(self.CONST_TEST_SUITE_CASES))
 
-#     CXPB, MUTPB = 0.5, 0.2
+        novelty_toolbox.register(
+            "population", tools.initRepeat, list, novelty_toolbox.individual)
 
-#     print("Start of evolution")
+        novelty_toolbox.register("evaluate", self.calculate_novelty_metric)
 
-#     fitnesses = list(map(toolbox.evaluate, pop, repeat(pop)))
-#     for ind, fit in zip(pop, fitnesses):
-#         ind.fitness.values = fit
+        novelty_toolbox.register("mate", tools.cxTwoPoint)
 
-#     print("  Evaluated %i individuals" % len(pop))
+        novelty_toolbox.register(
+            "mutate", tools.mutFlipBit, 
+            indpb = self.CONST_MUTATION_ATTRIBUTE_PROBABILITY)
 
-#     fits = [ind.fitness.values[0] for ind in pop]
+        novelty_toolbox.register(
+            "select", tools.selTournament, 
+            tournsize=self.CONST_SELECTION_TOURNAMENT_SIZE)
 
-#     g = 0
+        current_population = novelty_toolbox.population(
+            n = self.CONST_POPULATION_SIZE)
 
-#     while max(fits) < CONST_TOTAL_TEST_STATEMENTS and g < 50:
-#         g = g + 1
-#         print("-- Generation %i --" % g)
+        current_population_novelty = list(
+            map(novelty_toolbox.evaluate, current_population, 
+                repeat(current_population)))
+        for individual, novelty in zip(
+                    current_population, current_population_novelty):
+            individual.fitness.values = novelty
 
-#         offspring = toolbox.select(pop, len(pop))
-#         offspring = list(map(toolbox.clone, offspring))
+        novelty_values = [
+            individual.fitness.values[0] for individual in current_population]
 
-#         for child1, child2 in zip(offspring[::2], offspring[1::2]):
-#             if random.random() < CXPB:
-#                 toolbox.mate(child1, child2)
+        current_generation_count = 0
 
-#                 del child1.fitness.values
-#                 del child2.fitness.values
+        while (
+                max(novelty_values) < self.CONST_TOTAL_TEST_STATEMENTS and 
+                current_generation_count < self.CONST_MAX_GENERATION_COUNT):
+            current_generation_count = current_generation_count + 1
+            print("Generation #{}".format(current_generation_count))
 
-#         for mutant in offspring:
-#             if random.random() < MUTPB:
-#                 toolbox.mutate(mutant)
-#                 del mutant.fitness.values
+            current_generation_offspring = novelty_toolbox.select(
+                    current_population, len(current_population))
+            current_generation_offspring = list(
+                map(novelty_toolbox.clone, current_generation_offspring))
 
-#         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-#         fitnesses = map(toolbox.evaluate, invalid_ind, repeat(pop))
-#         for ind, fit in zip(invalid_ind, fitnesses):
-#             ind.fitness.values = fit
+            for offspring_1, offspring_2 in zip(
+                        current_generation_offspring[::2], 
+                        current_generation_offspring[1::2]):
+                if random.random() < self.CONST_CROSS_OVER_PROBABILITY:
+                    novelty_toolbox.mate(offspring_1, offspring_2)
 
-#         print("  Evaluated %i individuals" % len(invalid_ind))
+                    del offspring_1.fitness.values
+                    del offspring_2.fitness.values
 
-#         pop[:] = offspring
+            for offspring in current_generation_offspring:
+                if random.random() < self.CONST_MUTATION_PROBABILITY:
+                    novelty_toolbox.mutate(offspring)
+                    del offspring.fitness.values
 
-#         fits = [ind.fitness.values[0] for ind in pop]
+            invalid_novelty_individuals = [
+                individual for individual in current_generation_offspring \
+                    if not individual.fitness.valid]
+            novelty_values = map(
+                    novelty_toolbox.evaluate, invalid_novelty_individuals, 
+                    repeat(current_population))
+            for individual, novelty in zip(
+                        invalid_novelty_individuals, novelty_values):
+                individual.fitness.values = novelty
 
-#         length = len(pop)
-#         mean = sum(fits) / length
-#         sum2 = sum(x*x for x in fits)
-#         std = abs(sum2 / length - mean**2)**0.5
+            current_population[:] = current_generation_offspring
 
-#         print("  Min %s" % min(fits))
-#         print("  Max %s" % max(fits))
-#         print("  Avg %s" % mean)
-#         print("  Std %s" % std)
-#         best_individual = [[0], 0]
-#         for x in global_best_individuals:
-#             if x[1] > best_individual[1]:
-#                  best_individual = x
-#         activated_test_cases = sum(best_individual[0])
-#         coverage = best_individual[1]/3020.0 * 100
-#         print("  best agent's no of test cases: {}".format(activated_test_cases))
-#         print("  total number of test cases minimized: {} (from {})".format(CONST_TOTAL_TEST_SUITE_COUNT-activated_test_cases, CONST_TOTAL_TEST_SUITE_COUNT))
-#         print("  best agent's coverage %: {}".format(coverage))
+            novelty_values = [
+                individual.fitness.values[0] \
+                for individual in current_population]
 
-#     print("-- End of (successful) evolution --")
+            population_size = len(current_population)
+            average_fitness = sum(novelty_values) / population_size
+            activated_test_cases = sum(
+                    tools.selBest(current_population, 1)[0])
+            coverage = tools.selBest(
+                current_population, 1)[0].fitness.values[0] \
+                / self.CONST_TOTAL_TEST_STATEMENTS * 100
 
-#     best_ind = tools.selBest(pop, 1)[0]
-#     print("Best individual is %s, %s" % (best_ind, best_ind.fitness.values))
+            print("Average Fitness: {}".format(average_fitness))
+
+            best_individual = [[0], 0]
+            for x in self.global_best_individuals:
+                if x[1] > best_individual[1]:
+                    best_individual = x
+            activated_test_cases = sum(best_individual[0])
+            coverage = best_individual[1]/3020.0 * 100
+            print("Best Individual Stats: ")
+            print("No. of Test Cases: {}".format(activated_test_cases))
+            print("No. of test cases minimized: {} (from {})".format(
+                len(self.CONST_TEST_SUITE_CASES)-activated_test_cases, 
+                len(self.CONST_TEST_SUITE_CASES)))
+            print("Coverage value: {}%".format(coverage))
+
+        print("Finished evaluating test suite using Novelty Search!")
+
+    def perform_test_suite_minimization(self):
+        self.print_minimization_params()
+        if self.CONST_SEARCH_METHOD == "genetic":
+            return self.perform_genetic_algorithm()
+        elif self.CONST_SEARCH_METHOD == "novelty":
+            return self.perform_novelty_search()
+        
+        return False
+
 
 if __name__ == "__main__":
     # parse the command line arguments for the program
@@ -406,27 +464,57 @@ if __name__ == "__main__":
     parser.add_argument('--path', metavar="test_suite_path", 
             type=str,
             required = True, 
-            help="Path to directory containing test suite")
+            help="path to directory containing the test suite to be minimized")
     parser.add_argument('--algorithm', metavar="search_algorithm", 
             type=str,
             default = "genetic",
             required = False,
             help="selecting the algorithm for running test suite minimization")
-    # parser.add_argument('--cool', metavar="cooling_factor", 
-    #         type=float,
-    #         default = 0.9999,
-    #         required = False,
-    #         help="cooling factor for performing SA algorithm")
+    parser.add_argument('--pop_size', metavar="population_size", 
+            type=int,
+            required = False,
+            default=100,
+            help="the population size used in the genetic algorithms")
+    parser.add_argument('--max_gen', metavar="max_generation_count", 
+            type=int,
+            required = False,
+            default=10000,
+            help="the maximum generation for iterations in the algorithms")
+    parser.add_argument('--crossover', metavar="cross_over_probability", 
+            type=float,
+            required = False,
+            default = 0.5,
+            help="the cross over probability used in the genetic algorithms")
+    parser.add_argument('--mutation', metavar="mutation_probability", 
+            type=float,
+            required = False,
+            default = 0.2,
+            help="the mutation probability used in the genetic algorithms")
+    parser.add_argument('--attribute_mutation', 
+            metavar="mutation_attribute_probability", 
+            type=float,
+            required = False,
+            default = 0.05,
+            help="mutation probability for the attribute of each individual")
+    parser.add_argument('--tourn_size', metavar="selection_tournament_size", 
+            type=int,
+            required = False,
+            default = 3,
+            help="the tournament size criteria for performing selection")
 
     args = parser.parse_args()
     test_suite_path = args.path
     search_method = args.algorithm
-    # temp = args.temp
-    # cooling_factor = args.cool
+    population_size = args.pop_size
+    max_generation_count = args.max_gen
+    cross_over_probability = args.crossover
+    mutation_probability = args.mutation
+    mutation_attribute_probability = args.attribute_mutation
+    tournament_size = args.tourn_size
 
     if not os.path.exists(test_suite_path):
         print("Could not find the specificed directory at the given path!")
-        exit()
+        exit(1)
 
     # files, cases = parse_and_build_test_case_data(test_suite_path)
     # print(len(cases))
@@ -448,11 +536,15 @@ if __name__ == "__main__":
     # CONST_TOTAL_TEST_SUITE_COUNT = len(cases)
 
     tsm = TestSuiteMinimization(
-        test_suite_path=test_suite_path, test_suite_cases=cases,
-        total_test_statements=3020.0)   
-            
-    if search_method == "genetic":
-        tsm.perform_genetic_algorithm()
+        test_suite_path=test_suite_path,
+        search_method=search_method,
+        test_suite_cases=cases,
+        total_test_statements=3020.0,
+        population_size=population_size,
+        max_generation_count=max_generation_count,
+        cross_over_probability=cross_over_probability,
+        mutation_probability=mutation_probability,
+        mutation_attribute_probability=mutation_attribute_probability,
+        selection_tournament_size=tournament_size)   
     
-    # if search_method == "novelty":
-    #     tsm.(test_suite_path = test_suite_path)
+    tsm.perform_test_suite_minimization()
