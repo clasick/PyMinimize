@@ -148,7 +148,7 @@ class TestSuiteMinimization:
             total_test_statements, population_size=100, 
             max_generation_count=10000,  cross_over_probability=0.5, 
             mutation_probability=0.2, mutation_attribute_probability=0.05, 
-            selection_tournament_size=3):
+            selection_tournament_size=3, distance_metric='hamming'):
         self.CONST_TEST_SUITE_PATH = test_suite_path
         self.CONST_SEARCH_METHOD = search_method
         self.CONST_TEST_SUITE_CASES = test_suite_cases
@@ -160,6 +160,7 @@ class TestSuiteMinimization:
         self.CONST_MUTATION_ATTRIBUTE_PROBABILITY = \
                 mutation_attribute_probability
         self.CONST_SELECTION_TOURNAMENT_SIZE = selection_tournament_size
+        self.KNN_DISTANCE_METRIC = distance_metric
 
         if self.CONST_SEARCH_METHOD == "novelty":
             self.global_novelty_archive_list = dict()
@@ -186,6 +187,8 @@ class TestSuiteMinimization:
                 self.CONST_MUTATION_ATTRIBUTE_PROBABILITY))
         print("Tournament Selection Size: {}".format(
                 self.CONST_SELECTION_TOURNAMENT_SIZE))
+        if self.CONST_SEARCH_METHOD == "novelty":
+            print("kNN Distance Metric: {}".format(self.KNN_DISTANCE_METRIC))
         print("-----------------------------------")
 
     def genetic_fitness_function(self, individual):
@@ -334,7 +337,8 @@ class TestSuiteMinimization:
 
             knn_calculator = NearestNeighbors(
                     n_neighbors = 3,
-                    metric = 'hamming').fit(population_and_novelty_list)
+                    metric = self.KNN_DISTANCE_METRIC).fit(
+                        population_and_novelty_list)
             
             distances, _ = knn_calculator.kneighbors([individual])
 
@@ -517,6 +521,12 @@ if __name__ == "__main__":
             required = False,
             default = 3,
             help="the tournament size criteria for performing selection")
+    parser.add_argument('--distance_metric', metavar="distance_metric", 
+            type=str,
+            required = False,
+            default = "hamming",
+            help="the distance metric to use for calculating kNN in N.S.")
+            
 
     args = parser.parse_args()
     test_suite_path = args.path
@@ -527,6 +537,7 @@ if __name__ == "__main__":
     mutation_probability = args.mutation
     mutation_attribute_probability = args.attribute_mutation
     tournament_size = args.tourn_size
+    distance_metric = args.distance_metric
 
     if not os.path.exists(test_suite_path):
         print("Could not find the specificed directory at the given path!")
@@ -554,7 +565,8 @@ if __name__ == "__main__":
         cross_over_probability=cross_over_probability,
         mutation_probability=mutation_probability,
         mutation_attribute_probability=mutation_attribute_probability,
-        selection_tournament_size=tournament_size)
+        selection_tournament_size=tournament_size,
+        distance_metric=distance_metric)
     
     best_test_suite, best_coverage_value = tsm.perform_test_suite_minimization()
     csv_file_path = 'minimized_test_suite.csv'
