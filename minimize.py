@@ -332,8 +332,9 @@ class TestSuiteMinimization:
                 list(k) for k, _ in self.global_novelty_archive_list.items()] \
                 + population
 
-            knn_calculator = NearestNeighbors(n_neighbors = 3).fit(
-                population_and_novelty_list)
+            knn_calculator = NearestNeighbors(
+                    n_neighbors = 3,
+                    metric = 'hamming').fit(population_and_novelty_list)
             
             distances, _ = knn_calculator.kneighbors([individual])
 
