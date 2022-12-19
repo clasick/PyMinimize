@@ -1,3 +1,19 @@
+"""
+University of Ottawa
+CSI5137[B] AI-Enabled Software Verification and Testing
+Prof. Shiva Nejati
+
+--------------------------------------------------------------------------------
+
+Course Project
+A Novelty Search Algorithm Approach for Test Suite Minimization
+
+--------------------------------------------------------------------------------
+
+Vignesh Kumar Karuppasamy - 300274799
+Durga Devi Sivakumar -  300281361
+"""
+
 import argparse
 import csv
 from itertools import repeat
@@ -11,12 +27,22 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
 def parse_and_build_test_case_data(test_suite_path):
+    """
+    This function builds a list of test cases present in a test suite.
+    
+    Args:
+        test_suite_path (str): The path to the test suite directory.
+        
+    Returns:
+        tuple: A sorted list of test files and test cases
+    """
     build_test_case_cmd = "pytest --collect-only {}".format(test_suite_path)
 
     build_test_case_output = subprocess.run(
         build_test_case_cmd, shell=True, capture_output=True, text=True
     )
 
+    # if command failed, then return with error
     if build_test_case_output.returncode != 0:
         return False
 
@@ -36,25 +62,30 @@ def parse_and_build_test_case_data(test_suite_path):
     current_test_suite_file = None
     current_test_class = None
 
+    # iterate through each line in the output
     for line in build_test_case_output.splitlines():
         test_suit_file_result = re.search(regex_test_suite_file, line)
 
+        # match for test suite files
         if test_suit_file_result:
             test_suite_file = test_suit_file_result.group(1)
             test_suite_files.add(test_suite_file)
             current_test_suite_file = test_suite_file
 
         if current_test_suite_file:
+            # match for test classes
             test_class_result = re.search(regex_test_class, line)
 
             if test_class_result:
                 current_test_class = test_class_result.group(1)
 
+            # match for test cases
             test_case_result = re.search(regex_test_case_params, line)
 
             if not test_case_result:
                 test_case_result = re.search(regex_test_case, line)
-
+            
+            # match for nested test cases inside test classes
             test_class_test_case_result = re.search(
                 regex_test_class_test_case_params, line)
 
@@ -62,6 +93,7 @@ def parse_and_build_test_case_data(test_suite_path):
                 test_class_test_case_result = re.search(
                     regex_test_class_test_case, line)
 
+            # build test string for pytest runs
             if test_class_test_case_result:
                 test_cases_list.add(
                     "{}::{}::{}".format(
@@ -82,6 +114,21 @@ def parse_and_build_test_case_data(test_suite_path):
 
 def run_custom_test_suite_and_calculate_test_coverage(
     test_suite_path, test_cases_list=None, test_cases_activation_list=None):
+    """
+    This function runs a test suite with coverage measurement
+
+    It can take a list of test cases to run, but by default it will run all
+    the test cases present in the test suite.
+
+    Args:
+        test_suite_path (str): The path to the test suite to be run.
+        test_cases_list (list of str, optional): path of test cases to be run
+        test_cases_activation_list (list of bool, optional):
+            whether the corresponding test case should be run or not
+        
+    Returns:
+        bool: whether the run was successful or not
+    """
     test_cases_to_run = ""
 
     test_project_path = os.path.dirname(test_suite_path)
@@ -106,6 +153,14 @@ def run_custom_test_suite_and_calculate_test_coverage(
         return False
 
 def parse_coverage_report():
+    """
+    This function parses the coverage report from the last coverage run and
+    returns the coverage stats
+
+    Returns:
+        tuple: Statement coverage total and missed. Branch coverage total and 
+        missed.
+    """
     coverage_report_cmd = "coverage report"
 
     coverage_report_cmd = subprocess.run(
@@ -139,17 +194,51 @@ def parse_coverage_report():
     return False
 
 def activate_random_test_suite(test_cases_list):
+    """
+    This function takes in a list of test case paths and randomly activates
+    some of them based on a random probability.
+
+    Returns:
+        list: list of boolean values corresponding to the activated test cases
+    """
     return [random.choice([0, 1]) for x in test_cases_list]
 
 
 class TestSuiteMinimization:
     def __init__(
-            self, test_suite_path, search_method, test_suite_cases,
-            total_test_statements, population_size=100, 
-            max_generation_count=10000,  cross_over_probability=0.5, 
-            mutation_probability=0.2, mutation_attribute_probability=0.05, 
-            selection_tournament_size=3, distance_metric='hamming', 
-            novelty_archive=True):
+        self, test_suite_path, search_method, test_suite_cases,
+        total_test_statements, population_size=100, 
+        max_generation_count=10000,  cross_over_probability=0.5, 
+        mutation_probability=0.2, mutation_attribute_probability=0.05, 
+        selection_tournament_size=3, distance_metric='hamming', 
+        novelty_archive=True):
+        """
+        This class holds variables and functions used for performing test case
+        minimization using Genetic Algorithm, as well as for Novelty Search.
+        It also contains helper/utility functions for performing these tasks.
+
+        Args:
+            test_suite_path (str): the path to the test suite to be minimized
+            search_method: the evolutionary search method to be used
+            test_suite_cases (list of str): path to the test cases
+            total_test_statements (int): total number of statements covered
+            population_size (int, optional): population size for running
+                genetic algorithms (default is 100)
+            max_generation_count (int, optional): maximum generations to run
+                genetic algorithms for (default is 10000)
+            cross_over_probability (float, optional): probability of crossover
+                (default is 0.5)
+            mutation_probability (float, optional): probability of mutation
+                (default is 0.2)
+            mutation_attribute_probability (float, optional): probability of 
+                mutation for an attribute(default is 0.05)
+            selection_tournament_size (int, optional): size of the tournament 
+                selection used during each generation (default is 3)
+            distance_metric (str, optional): distance metric to use for 
+                calculating k-nearest neighbors (default is 'hamming')
+            novelty_archive (bool, optional): boolean indicating whether to use 
+                a novelty archive (default is True)
+        """
         self.CONST_TEST_SUITE_PATH = test_suite_path
         self.CONST_SEARCH_METHOD = search_method
         self.CONST_TEST_SUITE_CASES = test_suite_cases
@@ -164,13 +253,19 @@ class TestSuiteMinimization:
         self.KNN_DISTANCE_METRIC = distance_metric
         self.NOVELTY_ARCHIVE = novelty_archive
 
+        # if novelty method selected, then store some global variables
         if self.CONST_SEARCH_METHOD == "novelty":
+            # deactivate archive if option is selected
             if self.NOVELTY_ARCHIVE:
                 self.global_novelty_archive_list = dict()
             self.global_best_individuals = [
                 [[0] * len(self.CONST_TEST_SUITE_CASES), 0]]
 
     def print_minimization_params(self):
+        """
+        This function prints the paramaters that TestSuiteMinimization was
+        created and run with.
+        """
         print("-----------------------------------")
         print("Test Suite Minimization Initialized")
         print("-----------------------------------")
@@ -196,12 +291,26 @@ class TestSuiteMinimization:
         print("-----------------------------------")
 
     def genetic_fitness_function(self, individual):
+        """
+        This function represents the fitness function to be used for evaluating
+        individuals of a population during the genetic algorithm.
+
+        Args:
+            individual (list of bools): vector array representing a test suite
+
+        Returns:
+            int: the fitness value of the individual
+        """
         run_custom_test_suite_and_calculate_test_coverage(
                 self.CONST_TEST_SUITE_PATH, self.CONST_TEST_SUITE_CASES, 
                 individual)
         return self.CONST_TOTAL_TEST_STATEMENTS-parse_coverage_report()[1],
 
     def perform_genetic_algorithm(self):
+        """
+        This function performs the genetic algorithm implementation after
+        setup of the TestSuiteMinimization object.
+        """
         print("Starting test suite minimization with genetic algorithm")
 
         creator.create(
@@ -211,24 +320,34 @@ class TestSuiteMinimization:
 
         genetic_toolbox = base.Toolbox()
 
+        # an individual contains bools of 0 or 1
         genetic_toolbox.register("IndividualVector", random.randint, 0, 1)
 
+        # an individual is created with a vector of such bools
+        # the length is the number of test cases present in the suite
         genetic_toolbox.register(
             "individual", tools.initRepeat, creator.Individual, 
             genetic_toolbox.IndividualVector, len(self.CONST_TEST_SUITE_CASES))
 
+        # a population is initialized with n number of these individuals
         genetic_toolbox.register(
             "population", tools.initRepeat, 
             list, genetic_toolbox.individual)
 
+        # the genetic fitness function previously defined is used for 
+        # evaluating each individual
         genetic_toolbox.register("evaluate", self.genetic_fitness_function)
 
+        # the two point crossover method is used for crossover of individuals
         genetic_toolbox.register("mate", tools.cxTwoPoint)
 
+        # mutation is performed by flipping the bools of the individual based
+        # on a set probability
         genetic_toolbox.register(
             "mutate", tools.mutFlipBit,
             indpb = self.CONST_MUTATION_ATTRIBUTE_PROBABILITY)
 
+        # selection is done through tournament size equal to n
         genetic_toolbox.register(
             "select", 
             tools.selTournament, 
@@ -237,6 +356,7 @@ class TestSuiteMinimization:
         current_population = genetic_toolbox.population(
             n = self.CONST_POPULATION_SIZE)
 
+        # calculate fitness for initial population
         current_population_fitness = list(
                 map(genetic_toolbox.evaluate, current_population))
         for individual, fitness in zip(
@@ -249,17 +369,20 @@ class TestSuiteMinimization:
         current_generation_count = 0
         best_individual_test_suite, best_individual_coverage_value = None, None
 
+        # run implementation for each generation requried
         while (
                 max(fitness_values) < self.CONST_TOTAL_TEST_STATEMENTS and 
                 current_generation_count < self.CONST_MAX_GENERATION_COUNT):
             current_generation_count = current_generation_count + 1
             print("Generation #{}".format(current_generation_count))
 
+            # clone the current population
             current_generation_offspring = genetic_toolbox.select(
                 current_population, len(current_population))
             current_generation_offspring = list(
                 map(genetic_toolbox.clone, current_generation_offspring))
 
+            # perform crossover
             for offspring_1, offspring_2 in zip(
                         current_generation_offspring[::2], 
                         current_generation_offspring[1::2]):
@@ -269,11 +392,13 @@ class TestSuiteMinimization:
                     del offspring_1.fitness.values
                     del offspring_2.fitness.values
 
+            # perform mutation
             for offpsring in current_generation_offspring:
                 if random.random() < self.CONST_MUTATION_PROBABILITY:
                     genetic_toolbox.mutate(offpsring)
                     del offpsring.fitness.values
 
+            # recalculate fitness for mutated individuals
             invalid_fitness_individuals = [
                     individual for individual in current_generation_offspring \
                     if not individual.fitness.valid]
@@ -284,6 +409,7 @@ class TestSuiteMinimization:
                         current_population_fitness):
                 individual.fitness.values = fitness
 
+            # set population for next iteration
             current_population[:] = current_generation_offspring
 
             fitnesses = [
@@ -315,6 +441,18 @@ class TestSuiteMinimization:
         return best_individual_test_suite, best_individual_coverage_value
 
     def calculate_novelty_metric(self, individual, population):
+        """
+        This function represents the novelty metric to be used for evaluating
+        the behavior of individuals of a population for novelty search.
+
+        Args:
+            individual (list of bools): vector array representing a test suite
+            population (list of individuals): the total current population
+
+        Returns:
+            int: the novelty value of the individual
+        """
+        # calculate the coverage values for the current individual
         run_custom_test_suite_and_calculate_test_coverage(
                 self.CONST_TEST_SUITE_PATH, self.CONST_TEST_SUITE_CASES, 
                 individual)
@@ -326,21 +464,29 @@ class TestSuiteMinimization:
             if coverage_value < x[1]:
                 flag = 0
                 break
-        
+
+        # store the value if it is the best individual encountered so far
         if flag:
             self.global_best_individuals.append([individual, coverage_value])
 
+        # novelty archive is selected, then store very novel individuals
+        # in a global archive list
         if self.NOVELTY_ARCHIVE:
-            if len(self.global_novelty_archive_list) < self.CONST_POPULATION_SIZE:
+            # fill up the novelty archive with all individuals of the first
+            # generation
+            if len(self.global_novelty_archive_list) < \
+                    self.CONST_POPULATION_SIZE:
                 self.global_novelty_archive_list[
                         tuple(individual)] = (1, coverage_value)
                 return 1,
             else:
+                # combine archive and current population
                 population_and_novelty_list = [
                     list(k) for k, _ in \
                         self.global_novelty_archive_list.items()] \
                     + population
 
+                # perform k-nearest neighbor calculation
                 knn_calculator = NearestNeighbors(
                         n_neighbors = 3,
                         metric = self.KNN_DISTANCE_METRIC).fit(
@@ -348,14 +494,19 @@ class TestSuiteMinimization:
                 
                 distances, _ = knn_calculator.kneighbors([individual])
 
+                # find the average distance to k-neighbors
                 individual_novelty_metric = np.mean(distances)
 
+                # if novelty metric for current individual is above threshold,
+                # add it to the global novel archive list
                 if individual_novelty_metric > 7:
                     self.global_novelty_archive_list[tuple(individual)] = (
                         individual_novelty_metric, coverage_value)
 
                 return individual_novelty_metric,
         else:
+            # if novel archive is not selected, then perform k-nn and
+            # return the average distance to the k-neighbors
             knn_calculator = NearestNeighbors(
                         n_neighbors = 3,
                         metric = self.KNN_DISTANCE_METRIC).fit(
@@ -368,6 +519,10 @@ class TestSuiteMinimization:
             return individual_novelty_metric,
 
     def perform_novelty_search(self):
+        """
+        This function performs the novelty search implementation after
+        setup of the TestSuiteMinimization object.
+        """
         print("Starting test suite minimization with novelty search")
 
         creator.create("NoveltyMetric", base.Fitness, weights=(1.0,))
@@ -485,6 +640,10 @@ class TestSuiteMinimization:
         return best_individual_test_suite, best_individual_coverage_value
 
     def perform_test_suite_minimization(self):
+        """
+        This generic function performs specific test suite minimization method
+        based on the given parameters stored in the class object.
+        """
         self.print_minimization_params()
         if self.CONST_SEARCH_METHOD == "genetic":
             return self.perform_genetic_algorithm()
@@ -561,13 +720,16 @@ if __name__ == "__main__":
     distance_metric = args.distance_metric
     novelty_archive = not args.omit_novelty_archive
 
+    # exit the program with error if test suite path is not present
     if not os.path.exists(test_suite_path):
         print("Could not find the specificed directory at the given path!")
         exit(1)
 
+    # build list of cases present in the test suite
     test_suite_files, test_suite_cases_list = parse_and_build_test_case_data(
         test_suite_path=test_suite_path)
 
+    # calculate initial coverage using total test suite
     run_custom_test_suite_and_calculate_test_coverage(
         test_suite_path=test_suite_path)
 
@@ -577,6 +739,7 @@ if __name__ == "__main__":
     full_test_suite_coverage = (
         (total_statements - missed_statements) / total_statements) * 100
     
+    # define the test suite minimization object with the user's given values
     tsm = TestSuiteMinimization(
         test_suite_path=test_suite_path,
         search_method=search_method,
@@ -591,9 +754,11 @@ if __name__ == "__main__":
         distance_metric=distance_metric,
         novelty_archive=novelty_archive)
     
+    # perform the actual minimization
     best_test_suite, best_coverage_value = tsm.perform_test_suite_minimization()
     csv_file_path = 'minimized_test_suite.csv'
 
+    # store the minimzed test suite to a .csv file in the same dir
     with open(csv_file_path, 'w') as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(["Test Case", "Included"])
