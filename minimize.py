@@ -1,4 +1,5 @@
 import argparse
+import csv
 from itertools import repeat
 import random
 import re
@@ -80,8 +81,7 @@ def parse_and_build_test_case_data(test_suite_path):
     return sorted(test_suite_files), sorted(test_cases_list)
 
 def run_custom_test_suite_and_calculate_test_coverage(
-    test_suite_path, test_cases_list=None, test_cases_activation_list=None
-):
+    test_suite_path, test_cases_list=None, test_cases_activation_list=None):
     test_cases_to_run = ""
 
     test_project_path = os.path.dirname(test_suite_path)
@@ -92,11 +92,11 @@ def run_custom_test_suite_and_calculate_test_coverage(
             if test_case_activation[1]:
                 test_cases_to_run += (
                     f" {test_project_path}/{test_case_activation[0]}")
+    else:
+        test_cases_to_run += " {}".format(test_suite_path)
 
     coverage_run_cmd = "coverage run --branch -m pytest{}".format(
         test_cases_to_run)
-
-    # print(coverage_run_cmd)
 
     coverage_run_cmd_output = subprocess.run(
         coverage_run_cmd, shell=True, capture_output=True, text=True
@@ -167,6 +167,7 @@ class TestSuiteMinimization:
                 [[0] * len(self.CONST_TEST_SUITE_CASES), 0]]
 
     def print_minimization_params(self):
+        print("-----------------------------------")
         print("Test Suite Minimization Initialized")
         print("-----------------------------------")
         print("Test Suite Path: {}".format(self.CONST_TEST_SUITE_PATH))
@@ -239,6 +240,7 @@ class TestSuiteMinimization:
             individual.fitness.values[0] for individual in current_population]
 
         current_generation_count = 0
+        best_individual_test_suite, best_individual_coverage_value = None, None
 
         while (
                 max(fitness_values) < self.CONST_TOTAL_TEST_STATEMENTS and 
@@ -288,6 +290,10 @@ class TestSuiteMinimization:
             coverage = tools.selBest(
                 current_population, 1)[0].fitness.values[0] \
                 / self.CONST_TOTAL_TEST_STATEMENTS * 100
+            
+            best_individual_test_suite, best_individual_coverage_value = (
+                tools.selBest(current_population, 1)[0], 
+                coverage)
 
             print("Average Fitness: {}".format(average_fitness))
             print("Best Individual Stats: ")
@@ -299,7 +305,9 @@ class TestSuiteMinimization:
 
         print("Finished evluating test suite using genetic algorithm!")
 
-    def calculate_novelty_metric(self, individual, pop):
+        return best_individual_test_suite, best_individual_coverage_value
+
+    def calculate_novelty_metric(self, individual, population):
         run_custom_test_suite_and_calculate_test_coverage(
                 self.CONST_TEST_SUITE_PATH, self.CONST_TEST_SUITE_CASES, 
                 individual)
@@ -322,7 +330,7 @@ class TestSuiteMinimization:
         else:
             population_and_novelty_list = [
                 list(k) for k, _ in self.global_novelty_archive_list.items()] \
-                + pop
+                + population
 
             knn_calculator = NearestNeighbors(n_neighbors = 3).fit(
                 population_and_novelty_list)
@@ -381,6 +389,8 @@ class TestSuiteMinimization:
 
         current_generation_count = 0
 
+        best_individual_test_suite, best_individual_coverage_value = None, None
+
         while (
                 max(novelty_values) < self.CONST_TOTAL_TEST_STATEMENTS and 
                 current_generation_count < self.CONST_MAX_GENERATION_COUNT):
@@ -430,14 +440,17 @@ class TestSuiteMinimization:
                 current_population, 1)[0].fitness.values[0] \
                 / self.CONST_TOTAL_TEST_STATEMENTS * 100
 
-            print("Average Fitness: {}".format(average_fitness))
+            print("Average Novelty: {}".format(average_fitness))
 
             best_individual = [[0], 0]
             for x in self.global_best_individuals:
                 if x[1] > best_individual[1]:
                     best_individual = x
             activated_test_cases = sum(best_individual[0])
-            coverage = best_individual[1]/3020.0 * 100
+            coverage = best_individual[1]/self.CONST_TOTAL_TEST_STATEMENTS * 100
+
+            best_individual_test_suite, best_individual_coverage_value = (
+                    best_individual[0], coverage)
             print("Best Individual Stats: ")
             print("No. of Test Cases: {}".format(activated_test_cases))
             print("No. of test cases minimized: {} (from {})".format(
@@ -446,6 +459,8 @@ class TestSuiteMinimization:
             print("Coverage value: {}%".format(coverage))
 
         print("Finished evaluating test suite using Novelty Search!")
+
+        return best_individual_test_suite, best_individual_coverage_value
 
     def perform_test_suite_minimization(self):
         self.print_minimization_params()
@@ -516,35 +531,51 @@ if __name__ == "__main__":
         print("Could not find the specificed directory at the given path!")
         exit(1)
 
-    # files, cases = parse_and_build_test_case_data(test_suite_path)
-    # print(len(cases))
-    # for file in files:
-    #     print(file)
+    test_suite_files, test_suite_cases_list = parse_and_build_test_case_data(
+        test_suite_path=test_suite_path)
 
-    # for case in cases:
-    #     print(case)
-    # random_activated_cases_list = activate_random_test_suite(cases)
-    # print(random_activated_cases_list)
-    # print(sum(random_activated_cases_list))
-    # run_custom_test_suite_and_calculate_test_coverage(test_suite_path, cases, random_activated_cases_list)
-    # report_values = parse_coverage_report()
-    # print(report_values)
-    # print(1.0-(report_values[1]/report_values[0]))
+    run_custom_test_suite_and_calculate_test_coverage(
+        test_suite_path=test_suite_path)
 
-    files, cases = parse_and_build_test_case_data(test_suite_path)
-
-    # CONST_TOTAL_TEST_SUITE_COUNT = len(cases)
-
+    total_statements, missed_statements, \
+        branches, branches_missed = parse_coverage_report()
+    
+    full_test_suite_coverage = (
+        (total_statements - missed_statements) / total_statements) * 100
+    
     tsm = TestSuiteMinimization(
         test_suite_path=test_suite_path,
         search_method=search_method,
-        test_suite_cases=cases,
-        total_test_statements=3020.0,
+        test_suite_cases=test_suite_cases_list,
+        total_test_statements=total_statements,
         population_size=population_size,
         max_generation_count=max_generation_count,
         cross_over_probability=cross_over_probability,
         mutation_probability=mutation_probability,
         mutation_attribute_probability=mutation_attribute_probability,
-        selection_tournament_size=tournament_size)   
+        selection_tournament_size=tournament_size)
     
-    tsm.perform_test_suite_minimization()
+    best_test_suite, best_coverage_value = tsm.perform_test_suite_minimization()
+    csv_file_path = 'minimized_test_suite.csv'
+
+    with open(csv_file_path, 'w') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["Test Case", "Included"])
+
+        for test_case, included in zip(test_suite_cases_list, best_test_suite):
+            included = "YES" if included == 1 else "NO"
+            print(test_case, included)
+            csv_writer.writerow([test_case, included])
+
+    print("-----------------------------------")
+    print("Results")
+    print("-----------------------------------")
+    print("Minimized test suite contains: {} test cases".format(
+        sum(best_test_suite)))
+    print("Total test suite was reduced by: {} test cases (from {})".format(
+        len(test_suite_cases_list) - sum(best_test_suite), 
+        len(test_suite_cases_list)))
+    print("Coverage reduction due to minimization: {:.2f}%".format(
+        full_test_suite_coverage - best_coverage_value))
+    print("Minimized test suite details saved to {}!".format(csv_file_path))
+    print("-----------------------------------")
