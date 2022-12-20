@@ -1,2 +1,8 @@
 [run]
-omit = *tests*,*private*
+omit = 
+    *tests*
+    *private*
+    *tmp*
+    */tmp/*
+    */private/*
+    */tests/*
