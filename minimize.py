@@ -1,19 +1,3 @@
-"""
-University of Ottawa
-CSI5137[B] AI-Enabled Software Verification and Testing
-Prof. Shiva Nejati
-
---------------------------------------------------------------------------------
-
-Course Project
-A Novelty Search Algorithm Approach for Test Suite Minimization
-
---------------------------------------------------------------------------------
-
-Vignesh Kumar Karuppasamy - 300274799
-Durga Devi Sivakumar -  300281361
-"""
-
 import argparse
 import csv
 from itertools import repeat
